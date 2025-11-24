@@ -27,8 +27,8 @@ with open("config.json", "r") as f:
 
 APP_ID = config["APP_ID"]
 APP_SECRET = config["APP_SECRET"]
-BITABLE_APP_TOKEN = "DR8mbUoyUazoQ9sk0VTcB5sLnkh"
-TABLE_ID = "tbl01oWhlWFaEQsk" 
+BITABLE_APP_TOKEN = config["BITABLE_APP_TOKEN"]
+TABLE_ID = config["TABLE_ID"] 
 
 # 业务逻辑：解析指令
 def parse_task_command(text, mentions):
