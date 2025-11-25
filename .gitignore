@@ -4,3 +4,7 @@ __pycache__/
 config.json
 .gemini/
 tmp/
+logs/
+*.log
+supervisord.pid
+supervisord.sock

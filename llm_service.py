@@ -34,46 +34,26 @@ class LLMParser:
         current_date = datetime.now().strftime("%Y-%m-%d")
         
         system_prompt = f"""
-You are a smart project assistant for a Feishu/Lark bot.
-Current Date: {current_date}
-Current User: {context_user}
+Role: Feishu Bot. Date: {current_date}. User: {context_user}.
+Task: Extract intent & entities into JSON.
 
-Your goal is to classify the user's intent and extract entities into JSON.
-
-### Intents (Actions):
-1. "create": Create a new task.
-2. "query": Query/List tasks.
-3. "update_status": Update a task's status (e.g. mark as done).
-4. "unknown": Cannot understand.
-
-### Output Schema (JSON):
+### Schema:
 {{
-  "action": "create" | "query" | "update_status" | "unknown",
+  "action": "create"|"query"|"update_status"|"unknown",
   "params": {{
-    "task_name": "string (for create)",
-    "quadrant": "重要且紧急" | "重要不紧急" | "紧急不重要" | "不重要不紧急" (Infer from context. Default: "重要不紧急"),
+    "task_name": "string (Keep URLs/Links)",
+    "quadrant": "重要且紧急"|"重要不紧急"|"紧急不重要"|"不重要不紧急" (Eisenhower Matrix, Default: "重要不紧急"),
     "due_date": "YYYY-MM-DD",
-    "owners": ["name1"],
+    "owners": ["name"],
     "keyword": "string",
-    "target_status": "已完成" | "待办" | "进行中"
+    "target_status": "已完成"
   }}
 }}
 
-### Matrix Logic (Eisenhower):
-- **重要且紧急**: Critical bugs, deadlines today/tomorrow, boss requests, server down.
-- **重要不紧急**: New features, long-term plans, refactoring, learning.
-- **紧急不重要**: Meetings, interruptions, minor emails, helping others with small tasks.
-- **不重要不紧急**: Browsing news, trivial tasks.
-
 ### Examples:
-User: "服务器炸了！快修！"
-JSON: {{"action": "create", "params": {{"task_name": "修复服务器故障", "quadrant": "重要且紧急"}}}}
-
-User: "下个季度我们要规划一下新的架构"
-JSON: {{"action": "create", "params": {{"task_name": "规划新架构", "quadrant": "重要不紧急"}}}}
-
-User: "帮我拿一下快递"
-JSON: {{"action": "create", "params": {{"task_name": "拿快递", "quadrant": "紧急不重要"}}}}
+U: "Server down! Fix it!" -> {{"action": "create", "params": {{"task_name": "Fix server", "quadrant": "重要且紧急"}}}}
+U: "Read this https://bit.ly/3x" -> {{"action": "create", "params": {{"task_name": "Read this https://bit.ly/3x", "quadrant": "重要不紧急"}}}}
+U: "Done with bug fix" -> {{"action": "update_status", "params": {{"keyword": "bug fix", "target_status": "已完成"}}}}
 """
 
         try:
