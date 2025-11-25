@@ -1,0 +1,7 @@
+2025-11-25 11:34:05,243 INFO Increased RLIMIT_NOFILE limit to 1024
+2025-11-25 11:34:05,263 INFO RPC interface 'supervisor' initialized
+2025-11-25 11:34:05,263 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2025-11-25 11:34:05,267 INFO daemonizing the supervisord process
+2025-11-25 11:34:05,269 INFO supervisord started with pid 42216
+2025-11-25 11:34:05,816 INFO spawned: 'feishu_bot' with pid 42218
+2025-11-25 11:34:07,090 INFO success: feishu_bot entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)

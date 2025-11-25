@@ -1,0 +1,4 @@
+🤖 AI 增强版机器人正在启动...
+👉 请确保 config.json 中配置了 LLM_API_KEY，否则将回退到正则模式。
+[Lark] [2025-11-25 11:34:51,340] [INFO] connected to wss://msg-frontier.feishu.cn/ws/v2?fpid=493&aid=552564&device_id=7576501356582095812&access_key=c0ae4b1bfd092e07d7b10400c952321f&service_id=33554678&ticket=c9dd9e54-f23a-436d-a227-00399c98a17a [conn_id=7576501356582095812]
+[Lark] [2025-11-25 11:45:30,048] [ERROR] handle message failed, message_type: event, message_id: 7346f0af-6bd6-4771-9a23-918ccc5e1dec, trace_id: 747fa7ed55e2e75a75796ac568894496, err: 'NoneType' object is not iterable [conn_id=7576501356582095812]
