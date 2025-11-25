@@ -71,7 +71,6 @@ def handle_query_tasks(open_id):
         .app_token(BITABLE_APP_TOKEN) \
         .table_id(TABLE_ID) \
         .request_body(SearchAppTableRecordRequestBody.builder() \
-            .sort(["截止日期 DESC"]) 
             .build()) \
         .build()
 
@@ -95,6 +94,9 @@ def handle_query_tasks(open_id):
         # 2. 必须是我的
         if any(o.get("id") == open_id for o in owners):
             my_tasks.append(item)
+            
+    # 3. 内存排序 (按截止日期倒序, 截止日期可能为空)
+    my_tasks.sort(key=lambda x: x.fields.get("截止日期", 0) or 0, reverse=True)
 
     if not my_tasks:
         return "🎉 你目前没有待办任务！"
@@ -172,8 +174,55 @@ def handle_mark_done(open_id, keyword):
     return "❌ 更新失败"
 
 
-def handle_create_task(task_name, quadrant, due_date_ts, owner_ids):
-    """标准化的创建接口 (支持四象限)"""
+# --- 获取 Tenant Access Token (用于 requests 调用) ---
+def get_tenant_token():
+    url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
+    resp = requests.post(url, json={"app_id": APP_ID, "app_secret": APP_SECRET})
+    if resp.status_code == 200:
+        return resp.json().get("tenant_access_token")
+    return None
+
+def create_native_task(task_name, due_date_ts, owner_ids):
+    """创建飞书原生任务 (Task V2) - 使用 requests 原生调用"""
+    token = get_tenant_token()
+    if not token:
+        return "(鉴权失败)"
+        
+    url = "https://open.feishu.cn/open-apis/task/v2/tasks"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json; charset=utf-8"
+    }
+    
+    # 构造负责人
+    members = [{"id": oid, "type": "user"} for oid in owner_ids]
+    
+    payload = {
+        "summary": task_name,
+        "members": members
+    }
+    
+    if due_date_ts:
+        payload["due"] = {"time": str(due_date_ts)}
+        
+    try:
+        resp = requests.post(url, headers=headers, json=payload)
+        data = resp.json()
+        
+        if resp.status_code == 200 and data.get("code") == 0:
+            return f"[原生任务ID: {data['data']['task']['guid']}]"
+        else:
+            logging.error(f"Native Task Create Failed: {resp.text}")
+            return "(原生任务创建失败)"
+    except Exception as e:
+        logging.error(f"Native Task Exception: {e}")
+        return "(原生任务异常)"
+
+
+def handle_create_task(task_name, quadrant, due_date_ts, owner_ids, create_native_task_flag=False):
+    """标准化的创建接口 (支持四象限 + 原生任务可选双写)"""
+    
+    # 1. 写入多维表格 (Bitable)
     fields = {
         "任务描述": task_name,
         "四象限": quadrant, # 新字段
@@ -191,14 +240,38 @@ def handle_create_task(task_name, quadrant, due_date_ts, owner_ids):
         .build()
 
     resp = client.bitable.v1.app_table_record.create(req)
+    
+    bitable_msg = ""
     if resp.success():
-        return f"✅ 任务已创建\n📌 {task_name}\n🎯 {quadrant}"
-    return f"❌ 创建失败: {resp.msg}"
+        bitable_msg = "✅ 多维表格已记录"
+    else:
+        bitable_msg = f"❌ 表格写入失败: {resp.msg}"
+        
+    # 2. 根据 flag 创建原生任务 (Native Task)
+    native_msg = ""
+    if create_native_task_flag:
+        native_msg = f"\n📱 原生任务已同步 {create_native_task(task_name, due_date_ts, owner_ids)}"
+    else:
+        native_msg = "\n(原生任务未创建)"
+    
+    # 3. 返回综合结果
+    return f"{bitable_msg}{native_msg}\n📌 {task_name}\n🎯 {quadrant}"
 
 
 # --- 智能调度核心 ---
 
 def dispatch_command(text, mentions, sender_id, sender_name):
+    global BOT_OPEN_ID
+    
+    # 0. 补救措施：如果全局 ID 还没获取到，尝试从当前消息的 mentions 里找
+    if not BOT_OPEN_ID:
+        for m in mentions:
+            # 适配 Dobby
+            if m.name in ["Dobby", "机器人", "Feishu Bot"]:
+                BOT_OPEN_ID = m.id.open_id
+                logging.info(f"🤖 (Fallback) 从 Mentions 识别到机器人 ID: {BOT_OPEN_ID}")
+                break
+
     # 1. 尝试使用 LLM 解析
     llm_result = llm_parser.parse(text, context_user=sender_name)
     
@@ -219,8 +292,8 @@ def dispatch_command(text, mentions, sender_id, sender_name):
         elif action == "create":
             # 提取参数
             task_name = params.get("task_name", "未命名任务")
-            # 新逻辑: 提取象限
             quadrant = params.get("quadrant", "重要不紧急")
+            create_native_task_flag = params.get("create_native_task", False) # 默认不创建原生任务
             
             due_date_str = params.get("due_date")
             due_date_ts = None
@@ -236,10 +309,17 @@ def dispatch_command(text, mentions, sender_id, sender_name):
             
             mention_map = {}
             for m in mentions:
+                # 策略 A: 名字过滤 (Dobby)
+                if m.name in ["Dobby", "机器人", "Feishu Bot"]:
+                    continue
                 mention_map[m.name] = m.id.open_id
                 mention_map[m.key] = m.id.open_id 
             
             for owner_name in llm_owners:
+                # 策略 B: 名字过滤 (LLM 提取出来的名字)
+                if owner_name in ["Dobby", "机器人", "自己", "Bot"]:
+                    continue
+
                 matched = False
                 if owner_name in mention_map:
                     final_owner_ids.append(mention_map[owner_name])
@@ -251,21 +331,16 @@ def dispatch_command(text, mentions, sender_id, sender_name):
                             matched = True
                             break
             
-            # 去重
             final_owner_ids = list(set(final_owner_ids))
             
-            # 最终排除机器人自己 (无论它是否在 LLM 提取的列表中)
+            # 策略 C: ID 过滤 (最终保险)
             if BOT_OPEN_ID and BOT_OPEN_ID in final_owner_ids:
                 final_owner_ids.remove(BOT_OPEN_ID)
-
-            # 兜底逻辑：
-            # 1. 如果 LLM 没提取到任何人 -> 给发送者
-            # 2. 如果 LLM 提取了人但没匹配到 ID (没@) -> 给发送者
+                
             if not final_owner_ids:
-                logging.info(f"👤 未指定或未找到负责人，默认分配给发送者: {sender_id}")
                 final_owner_ids = [sender_id]
                 
-            return handle_create_task(task_name, quadrant, due_date_ts, final_owner_ids)
+            return handle_create_task(task_name, quadrant, due_date_ts, final_owner_ids, create_native_task_flag)
             
         elif action == "unknown":
             pass 
@@ -283,6 +358,11 @@ def dispatch_command(text, mentions, sender_id, sender_name):
     clean_text = text
     owner_ids = []
     for m in mentions:
+        # 过滤机器人 (Dobby)
+        if m.name in ["Dobby", "机器人", "Feishu Bot"]:
+            clean_text = clean_text.replace(m.key, "").strip()
+            continue
+            
         if m.key in text:
             owner_ids.append(m.id.open_id)
             clean_text = clean_text.replace(m.key, "").strip()
@@ -294,7 +374,7 @@ def dispatch_command(text, mentions, sender_id, sender_name):
     if not owner_ids: owner_ids = [sender_id]
     
     tokens = clean_text.split()
-    quadrant = "重要不紧急" # 默认 P1
+    quadrant = "重要不紧急" 
     due_date_ts = None
     remains = []
     
@@ -312,7 +392,7 @@ def dispatch_command(text, mentions, sender_id, sender_name):
             except: remains.append(t)
         else: remains.append(t)
         
-    return handle_create_task(" ".join(remains) or "未命名", quadrant, due_date_ts, owner_ids)
+    return handle_create_task(" ".join(remains) or "未命名", quadrant, due_date_ts, owner_ids, False) # 默认不创建原生任务
 
 
 # --- 获取机器人自己的 Open ID ---
@@ -362,16 +442,66 @@ def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1) -> None:
     # 在第一次收到消息时尝试获取机器人自己的 OpenID
     if not BOT_OPEN_ID:
         for m in message.mentions:
-            if m.id.open_id and m.name == "机器人": # 假设机器人的名称就是“机器人”
+            # 适配 Dobby
+            if m.id.open_id and m.name in ["Dobby", "机器人", "Feishu Bot"]:
                 BOT_OPEN_ID = m.id.open_id
                 logging.info(f"🤖 机器人自己的 Open ID 已识别: {BOT_OPEN_ID}")
                 break
 
+    # --- 防打扰逻辑 ---
+    # 如果是群聊 (group)，且没有 @机器人，则忽略
+    # chat_type: "p2p" (私聊) or "group" (群聊)
+    if message.chat_type == "group":
+        is_mentioned = False
+        if hasattr(message, "mentions"):
+            for m in message.mentions:
+                # 检查是否 @了机器人 (对比 ID 或 名字)
+                if (BOT_OPEN_ID and m.id.open_id == BOT_OPEN_ID) or m.name in ["Dobby", "机器人", "Feishu Bot"]:
+                    is_mentioned = True
+                    break
+        
+        if not is_mentioned:
+            logging.debug(f"🔇 群聊消息但未 @机器人，忽略: {msg_id}")
+            return
+
     try:
         content = json.loads(message.content)
         text = content.get("text", "").strip()
-        mentions = message.mentions if hasattr(message, "mentions") else []
+        # 修复: 确保 mentions 永远是列表，防止 SDK 返回 None
+        mentions = getattr(message, "mentions", []) or []
     except: return
+
+    # --- 清洗文本 (移除 @mention) ---
+    clean_text_for_help = text
+    for m in mentions:
+        clean_text_for_help = clean_text_for_help.replace(m.key, "").strip()
+
+    # --- 空消息/帮助指令处理 ---
+    # 1. 纯空消息 -> 回复帮助
+    # 2. 只有帮助指令 -> 回复帮助
+    if not clean_text_for_help or clean_text_for_help.lower() in ["help", "帮助", "/start", "怎么用", "使用说明", "功能"]:
+        help_msg = """👋 Hi, 我是 Dobby 项目助手！
+你可以这样对我说话：
+
+1. **创建任务** (支持自然语言)
+   - "明天要把PPT写完，很重要"
+   - "提醒我下周一开会" (会创建飞书原生任务)
+   
+2. **查询任务**
+   - "我的任务"
+   - "还有啥没做？"
+
+3. **更新状态**
+   - "PPT写完啦"
+   - "首页Bug修好了"
+   
+如果不指定负责人，我会把任务分配给你。
+"""
+        client.im.v1.message.reply(ReplyMessageRequest.builder() \
+            .message_id(message.message_id) \
+            .request_body(ReplyMessageRequestBody.builder().content(json.dumps({"text": help_msg})).msg_type("text").build()) \
+            .build())
+        return
 
     logging.info(f"📩 Msg: {text}")
     reply = dispatch_command(text, mentions, sender_id, sender_name)

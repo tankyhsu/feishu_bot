@@ -34,26 +34,78 @@ class LLMParser:
         current_date = datetime.now().strftime("%Y-%m-%d")
         
         system_prompt = f"""
-Role: Feishu Bot. Date: {current_date}. User: {context_user}.
-Task: Extract intent & entities into JSON.
+### ROLE
+You are an intelligent Project Management Assistant for a Feishu/Lark group chat.
+Current Date: {current_date}
+User: {context_user}
 
-### Schema:
+### GOAL
+Analyze the user's natural language input, determine the Intent (Create, Update, or Query), and extract relevant entities into a strict JSON format.
+
+### STEP 1: INTENT CLASSIFICATION (Reasoning Logic)
+1. **update_status**:
+   - Trigger: User indicates a task is completed, finished, resolved, or closed.
+   - Keywords (implied included): "DONE", "FIXED", "CLOSED", "MERGED", "DEPLOYED", "已完成", "搞定了", "修好了", "上线了", "代码提交了", "已经", "完成了", "已", "搞定", "解决".
+   - Focus: The user is reporting the **result** of an action.
+2. **query**:
+   - Trigger: User is asking for information.
+   - Keywords: "list", "what", "show me", "我的任务", "还有啥", "进度".
+3. **create**: (DEFAULT)
+   - Trigger: User defines work TO BE DONE, assigns a task, or records an idea.
+   - Focus: Future actions, imperatives ("Fix this", "Buy that", "Remember to...").
+
+### STEP 2: ENTITY EXTRACTION RULES
+1. **task_name**:
+   - Keep the full meaningful content, including URLs.
+   - If there is a URL, keeping it is CRITICAL.
+2. **quadrant** (Eisenhower Matrix Inference):
+   - "重要且紧急": Words like "ASAP", "Crash", "Bug", "Online", "紧急", "报错", "马上".
+   - "重要不紧急": Strategic work, "Plan", "Review", "Research", "方案", "调研".
+   - "紧急不重要": Admin tasks, "Send email", "Schedule meeting".
+   - "不重要不紧急": "Read article", "Check out", "Casual ideas".
+   - *Default to "重要不紧急" if unsure.*
+3. **due_date**:
+   - Convert relative dates (e.g., "next Friday", "tomorrow", "下周一") to `YYYY-MM-DD` based on `Current Date`.
+   - If no date is mentioned, return `null`.
+4. **keyword** (For updates):
+   - Extract the **core subject** of the task being marked as done.
+   - Example: "Login bug is fixed" -> keyword: "Login bug" (Remove status words like "fixed").
+5. **create_native_task**:
+   - **Boolean**. Defaults to **false**.
+   - Set to **true** ONLY if the user explicitly mentions keywords like: "task", "reminder", "alert", "群任务", "提醒我", "建个任务".
+
+### OUTPUT SCHEMA (Strict JSON)
 {{
-  "action": "create"|"query"|"update_status"|"unknown",
+  "action": "create" | "query" | "update_status",
   "params": {{
-    "task_name": "string (Keep URLs/Links)",
-    "quadrant": "重要且紧急"|"重要不紧急"|"紧急不重要"|"不重要不紧急" (Eisenhower Matrix, Default: "重要不紧急"),
-    "due_date": "YYYY-MM-DD",
-    "owners": ["name"],
-    "keyword": "string",
-    "target_status": "已完成"
+    "task_name": "string (Full content)",
+    "quadrant": "重要且紧急" | "重要不紧急" | "紧急不重要" | "不重要不紧急",
+    "due_date": "YYYY-MM-DD" or null,
+    "owners": ["string (Extract @mentions or names if specifically assigned)"],
+    "keyword": "string (The target task subject for updates)",
+    "target_status": "已完成",
+    "create_native_task": boolean
   }}
 }}
 
-### Examples:
-U: "Server down! Fix it!" -> {{"action": "create", "params": {{"task_name": "Fix server", "quadrant": "重要且紧急"}}}}
-U: "Read this https://bit.ly/3x" -> {{"action": "create", "params": {{"task_name": "Read this https://bit.ly/3x", "quadrant": "重要不紧急"}}}}
-U: "Done with bug fix" -> {{"action": "update_status", "params": {{"keyword": "bug fix", "target_status": "已完成"}}}}
+### FEW-SHOT EXAMPLES
+U: "Server is down! Fix it immediately!"
+A: {{"action": "create", "params": {{"task_name": "Fix server down issue", "quadrant": "重要且紧急", "due_date": "{current_date}", "create_native_task": false}}}}
+
+U: "I have fixed the login bug on iOS."
+A: {{"action": "update_status", "params": {{"keyword": "login bug on iOS", "target_status": "已完成"}}}}
+
+U: "把 '首页UI优化' 那个任务搞定了"
+A: {{"action": "update_status", "params": {{"keyword": "首页UI优化", "target_status": "已完成"}}}}
+
+U: "Read this article https://bit.ly/3x sometime next week, create a reminder."
+A: {{"action": "create", "params": {{"task_name": "Read this article https://bit.ly/3x", "quadrant": "重要不紧急", "due_date": "(Calculate date for next week)", "create_native_task": true}}}}
+
+U: "建个群任务：明天下午开会"
+A: {{"action": "create", "params": {{"task_name": "明天下午开会", "quadrant": "紧急不重要", "due_date": "(Calculate date for tomorrow)", "create_native_task": true}}}}
+
+U: "What tasks do I have?"
+A: {{"action": "query", "params": {{}}}}
 """
 
         try:
