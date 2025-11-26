@@ -1,5 +1,6 @@
 import json
 import logging
+import threading
 from datetime import datetime
 from lark_oapi.api.im.v1.model import P2ImMessageReceiveV1
 
@@ -11,29 +12,39 @@ class MessageHandler:
         self.llm = llm_service
         self.minutes = minutes_handler
         self.processed_msg_ids = set()
+        self.lock = threading.Lock()
 
     def handle(self, data: P2ImMessageReceiveV1):
         event = data.event
         msg = event.message
         msg_id = msg.message_id
         
-        # 1. Deduplication
-        if msg_id in self.processed_msg_ids: return
-        self.processed_msg_ids.add(msg_id)
-        if len(self.processed_msg_ids) > 1000: self.processed_msg_ids.clear()
+        # 1. Deduplication (Thread-safe)
+        with self.lock:
+            if msg_id in self.processed_msg_ids: return
+            self.processed_msg_ids.add(msg_id)
+            if len(self.processed_msg_ids) > 1000: self.processed_msg_ids.clear()
 
-        # 2. Get Sender
+        # 2. Start a thread to process the message asynchronously
+        threading.Thread(target=self._process_message, args=(data,)).start()
+
+    def _process_message(self, data: P2ImMessageReceiveV1):
+        event = data.event
+        msg = event.message
+        msg_id = msg.message_id
+
+        # 3. Get Sender
         sender_id = event.sender.sender_id.open_id
-        sender_name = "User" # We could fetch this if needed, but "User" is fine for now
+        sender_name = "User" 
         
-        # 3. Parse Content
+        # 4. Parse Content
         try:
             content = json.loads(msg.content)
             text = content.get("text", "").strip()
             mentions = getattr(msg, "mentions", []) or []
         except: return
 
-        # 4. Group Chat Filter
+        # 5. Group Chat Filter
         if msg.chat_type == "group":
             is_at_me = False
             bot_id = self.task.get_bot_id()
@@ -43,26 +54,29 @@ class MessageHandler:
                     break
             if not is_at_me: return
 
-        # 5. Clean Text (Remove @Dobby)
+        # 6. Clean Text (Remove @Dobby)
         clean_text = text
         for m in mentions:
             clean_text = clean_text.replace(m.key, "").strip()
 
         # --- Router ---
 
-        # A. Help
-        if not clean_text or clean_text.lower() in ["help", "帮助", "/start", "怎么用"]:
-            self.im.reply(msg_id, "👋 我是 Dobby。\n\n1. **项目管理**: 帮我建任务、查任务、完成任务。\n2. **会议纪要**: 发送妙记链接，我自动总结。")
-            return
+        try:
+            # A. Help
+            if not clean_text or clean_text.lower() in ["help", "帮助", "/start", "怎么用"]:
+                self.im.reply(msg_id, "👋 我是 Dobby。\n\n1. **项目管理**: 帮我建任务、查任务、完成任务。\n2. **会议纪要**: 发送妙记链接，我自动总结。")
+                return
 
-        # B. Minutes (Delegate to MinutesHandler)
-        if self.minutes.handle(msg_id, text, sender_id):
-            return
+            # B. Minutes (Delegate to MinutesHandler)
+            if self.minutes.handle(msg_id, text, sender_id):
+                return
 
-        # C. Task Management (Process Intent)
-        response = self._process_task_command(clean_text, mentions, sender_id, sender_name)
-        if response:
-            self.im.reply(msg_id, response)
+            # C. Task Management (Process Intent)
+            response = self._process_task_command(clean_text, mentions, sender_id, sender_name)
+            if response:
+                self.im.reply(msg_id, response)
+        except Exception as e:
+            logging.error(f"Error processing message {msg_id}: {e}")
 
     def _process_task_command(self, text, mentions, sender_id, sender_name):
         # 1. LLM Parse

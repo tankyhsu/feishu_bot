@@ -12,7 +12,7 @@ from handlers.minutes_handler import MinutesHandler
 from handlers.message_handler import MessageHandler
 
 # Configure Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(threadName)s] - %(message)s')
 
 def main():
     # 1. Load Config
