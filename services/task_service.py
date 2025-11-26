@@ -6,24 +6,19 @@ from lark_oapi.api.bitable.v1.model import (
     SearchAppTableRecordRequest, SearchAppTableRecordRequestBody,
     UpdateAppTableRecordRequest
 )
-from llm_service import LLMParser
 
-class ProjectManager:
+class TaskService:
     def __init__(self, client, config):
         self.client = client
-        self.app_token = config["BITABLE_APP_TOKEN"]
-        self.table_id = config["TABLE_ID"]
-        self.llm_parser = LLMParser(
-            api_key=config.get("LLM_API_KEY"),
-            base_url=config.get("LLM_BASE_URL"),
-            model=config.get("LLM_MODEL")
-        )
-        self.app_id = config["APP_ID"]
-        self.app_secret = config["APP_SECRET"]
+        self.config = config
+        self.app_token = config.BITABLE_APP_TOKEN
+        self.table_id = config.TABLE_ID
+        self.app_id = config.APP_ID
+        self.app_secret = config.APP_SECRET
         self.bot_open_id = None
 
     def get_bot_id(self):
-        # 懒加载获取 Bot ID
+        # Lazy load Bot ID
         if not self.bot_open_id:
             try:
                 url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
@@ -118,36 +113,3 @@ class ProjectManager:
         if create_native:
             msg += f"\n{self.create_native_task(task_name, due_ts, owner_ids)}"
         return msg
-
-    def process(self, text, mentions, sender_id, sender_name):
-        # LLM 解析
-        res = self.llm_parser.parse(text, sender_name)
-        
-        # 逻辑分发 (复用之前的逻辑，简化版)
-        if res:
-            action = res.get("action")
-            p = res.get("params", {})
-            if action == "query": return self.handle_query(sender_id)
-            if action == "update_status": return self.handle_mark_done(sender_id, p.get("keyword"))
-            if action == "create":
-                # 解析负责人 (含 Dobby 排除)
-                bot_id = self.get_bot_id()
-                owners = []
-                mention_map = {m.name: m.id.open_id for m in mentions if m.name not in ["Dobby","机器人"]}
-                for name in p.get("owners", []):
-                    if name in mention_map: owners.append(mention_map[name])
-                
-                if not owners: owners = [sender_id]
-                if bot_id and bot_id in owners: owners.remove(bot_id)
-                if not owners: owners = [sender_id] #再次兜底
-                
-                # 解析日期
-                due = None
-                if p.get("due_date"):
-                    try: due = int(datetime.strptime(p.get("due_date"), "%Y-%m-%d").timestamp()*1000)
-                    except: pass
-                
-                return self.handle_create(p.get("task_name"), p.get("quadrant"), due, owners, p.get("create_native_task", False))
-        
-        # 降级逻辑 (Regex)
-        return self.handle_create(text, "重要不紧急", None, [sender_id], False)
