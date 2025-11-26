@@ -117,3 +117,32 @@ class DocManager:
                  logging.error(f"Add blocks exception: {e}")
 
         return True
+
+    def transfer_ownership(self, doc_id, owner_open_id):
+        token = self.get_tenant_token()
+        if not token: return False
+
+        url = f"https://open.feishu.cn/open-apis/drive/v1/permissions/{doc_id}/transfer_owner"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+        payload = {
+            "member_type": "openid", # or "unionid", "userid"
+            "member_id": owner_open_id,
+            "remove_old_owner": True # Optional, usually set to True if truly transferring
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload)
+            if resp.status_code != 200:
+                logging.error(f"Transfer ownership failed for doc {doc_id} to {owner_open_id}: {resp.text}")
+                return False
+            data = resp.json()
+            if data.get("code") != 0:
+                logging.error(f"Transfer ownership API error: {data}")
+                return False
+            return True
+        except Exception as e:
+            logging.error(f"Transfer ownership exception: {e}")
+            return False

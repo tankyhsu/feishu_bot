@@ -34,10 +34,34 @@ dm = DocManager(APP_ID, APP_SECRET)
 processed_msg_ids = set()
 
 def reply(msg_id, text):
-    client.im.v1.message.reply(ReplyMessageRequest.builder() 
+    resp = client.im.v1.message.reply(ReplyMessageRequest.builder() 
         .message_id(msg_id)
         .request_body(ReplyMessageRequestBody.builder().content(json.dumps({"text": text})).msg_type("text").build())
         .build())
+    if resp.success():
+        return resp.data.message_id
+    else:
+        logging.error(f"Failed to reply message: {resp.code} - {resp.msg}")
+        return None
+
+from lark_oapi.api.im.v1.model import UpdateMessageRequest, UpdateMessageRequestBody
+
+def update_message(message_id, text):
+    request_body = UpdateMessageRequestBody.builder() \
+        .msg_type("text") \
+        .content(json.dumps({"text": text})) \
+        .build()
+        
+    request = UpdateMessageRequest.builder() \
+        .message_id(message_id) \
+        .request_body(request_body) \
+        .build()
+    
+    resp = client.im.v1.message.update(request)
+    if not resp.success():
+        logging.error(f"Failed to update message {message_id}: {resp.code} - {resp.msg}")
+        return False
+    return True
 
 def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1) -> None:
     event = data.event
@@ -85,30 +109,63 @@ def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1) -> None:
     # B. 会议纪要 (特征: 包含 minutes 链接)
     minutes_token = mm.extract_minutes_token(text) # 用原始文本匹配链接
     if minutes_token:
-        reply(msg_id, "🎧 收到会议录音，正在收听并整理纪要 (预计1分钟)...")
+        # 发送初始处理消息，并获取 message_id
+        initial_reply_id = reply(msg_id, "🎧 收到会议录音，正在处理中...")
         
-        subtitle = mm.fetch_subtitle(minutes_token)
-        if not subtitle:
-            reply(msg_id, "❌ 无法读取妙记。请确认已授予机器人权限并分享链接。")
-            return
-            
-        summary = mm.summarize(subtitle)
-        reply(msg_id, summary)
+        final_response_text = ""
+        doc_url = ""
 
-        # 存入文档
         try:
-            reply(msg_id, "📄 正在生成云文档...")
-            today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-            doc_title = f"会议纪要 - {today_str}"
-            doc_id = dm.create_document(doc_title)
-            if doc_id:
-                dm.add_content(doc_id, summary)
-                doc_url = f"https://feishu.cn/docx/{doc_id}"
-                reply(msg_id, f"✅ 文档已保存: [{doc_title}]({doc_url})")
+            subtitle = mm.fetch_subtitle(minutes_token)
+            if not subtitle:
+                final_response_text = "❌ 无法读取妙记。请确认已授予机器人权限并分享链接。"
             else:
-                reply(msg_id, "❌ 文档创建失败，请检查权限。")
+                summary_result = mm.summarize(subtitle)
+                
+                if isinstance(summary_result, dict):
+                    summary_content = summary_result.get("content", "")
+                    summary_title = summary_result.get("title", "会议纪要")
+                else:
+                    summary_content = str(summary_result)
+                    summary_title = "会议纪要"
+
+                # 默认回复文本，如果文档创建失败，则回复总结内容
+                final_response_text = summary_content 
+
+                # 尝试存入文档
+                try:
+                    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+                    doc_title = f"{summary_title} - {today_str}"
+                    
+                    doc_id = dm.create_document(doc_title)
+                    if doc_id:
+                        dm.add_content(doc_id, summary_content)
+                        doc_url = f"https://feishu.cn/docx/{doc_id}"
+                        
+                        # 文档创建成功，只回复文档链接和状态
+                        final_response_text = f"✅ 会议纪要已生成云文档: [{doc_title}]({doc_url})"
+                        
+                        # 尝试转移所有权
+                        if dm.transfer_ownership(doc_id, sender_id):
+                            final_response_text += "\n✅ 所有权已转移给你。"
+                        else:
+                            final_response_text += "\n⚠️ 所有权转移失败，请检查机器人是否具备足够权限（如：云文档所有者转移）。"
+                    else:
+                        # 文档创建失败，在原总结内容基础上追加错误信息
+                        final_response_text += "\n\n❌ 文档创建失败，请检查权限。"
+                except Exception as e:
+                    # 文档保存异常，在原总结内容基础上追加错误信息
+                    final_response_text += f"\n\n❌ 保存文档异常: {e}"
+
+
         except Exception as e:
-            reply(msg_id, f"❌ 保存文档异常: {e}")
+            final_response_text = f"❌ 处理妙记时发生异常: {e}"
+        
+        # 更新初始消息
+        if initial_reply_id:
+            update_message(initial_reply_id, final_response_text)
+        else: # 如果初始消息发送失败，则直接回复
+            reply(msg_id, final_response_text)
         
         return
 
