@@ -2,7 +2,7 @@ import requests
 import json
 import logging
 
-class DocManager:
+class DocService:
     def __init__(self, app_id, app_secret):
         self.app_id = app_id
         self.app_secret = app_secret

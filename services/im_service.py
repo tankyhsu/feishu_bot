@@ -15,10 +15,10 @@ class IMService:
         """Reply to a message"""
         req = ReplyMessageRequest.builder() \
             .message_id(msg_id) \
-            .request_body(ReplyMessageRequestBody.builder()
-                .content(json.dumps({"text": text}))
-                .msg_type("text")
-                .build())
+            .request_body(ReplyMessageRequestBody.builder() \
+                .content(json.dumps({"text": text})) \
+                .msg_type("text") \
+                .build()) \
             .build()
             
         resp = self.client.im.v1.message.reply(req)
@@ -32,10 +32,10 @@ class IMService:
         """Update a message"""
         req = UpdateMessageRequest.builder() \
             .message_id(msg_id) \
-            .request_body(UpdateMessageRequestBody.builder()
-                .content(json.dumps({"text": text}))
-                .msg_type("text")
-                .build())
+            .request_body(UpdateMessageRequestBody.builder() \
+                .content(json.dumps({"text": text})) \
+                .msg_type("text") \
+                .build()) \
             .build()
             
         resp = self.client.im.v1.message.update(req)

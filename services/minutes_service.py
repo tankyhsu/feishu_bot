@@ -6,7 +6,7 @@ from openai import OpenAI
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 
-class MinutesSummarizer:
+class MinutesService:
     def __init__(self, app_id, app_secret, llm_key, llm_base, llm_model):
         self.app_id = app_id
         self.app_secret = app_secret
