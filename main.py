@@ -5,10 +5,10 @@ from lark_oapi.ws import Client
 from config import Config
 from services.task_service import TaskService
 from services.minutes_service import MinutesService
-from services.doc_service import DocService
+from services.doc_service_v2 import DocServiceV2 as DocService
 from services.im_service import IMService
 from services.llm_service import LLMParser
-from services.rss_service import RSSService
+from services.rss_service_v2 import RSSServiceV2 as RSSService
 from handlers.minutes_handler import MinutesHandler
 from handlers.message_handler import MessageHandler
 
