@@ -5,12 +5,13 @@ from datetime import datetime
 from lark_oapi.api.im.v1.model import P2ImMessageReceiveV1
 
 class MessageHandler:
-    def __init__(self, config, im_service, task_service, llm_service, minutes_handler):
+    def __init__(self, config, im_service, task_service, llm_service, minutes_handler, rss_service):
         self.config = config
         self.im = im_service
         self.task = task_service
         self.llm = llm_service
         self.minutes = minutes_handler
+        self.rss = rss_service
         self.processed_msg_ids = set()
         self.lock = threading.Lock()
 
@@ -46,6 +47,7 @@ class MessageHandler:
 
         # 5. Group Chat Filter
         if msg.chat_type == "group":
+            logging.info(f"Received group message in chat_id: {msg.chat_id}") 
             is_at_me = False
             bot_id = self.task.get_bot_id()
             for m in mentions:
@@ -64,14 +66,21 @@ class MessageHandler:
         try:
             # A. Help
             if not clean_text or clean_text.lower() in ["help", "帮助", "/start", "怎么用"]:
-                self.im.reply(msg_id, "👋 我是 Dobby。\n\n1. **项目管理**: 帮我建任务、查任务、完成任务。\n2. **会议纪要**: 发送妙记链接，我自动总结。")
+                self.im.reply(msg_id, "👋 我是 Dobby。\n\n1. **项目管理**: 帮我建任务、查任务、完成任务。\n2. **会议纪要**: 发送妙记链接，我自动总结。\n3. **RSS早报**: 发送 'RSS' 或 '早报' 获取最新资讯。")
                 return
 
-            # B. Minutes (Delegate to MinutesHandler)
+            # B. RSS Digest
+            if clean_text.lower() in ["rss", "早报", "新闻", "digest"]:
+                self.im.reply(msg_id, "📰 正在抓取并生成 RSS 早报，请稍候...")
+                digest = self.rss.fetch_and_summarize()
+                self.im.reply(msg_id, digest)
+                return
+
+            # C. Minutes (Delegate to MinutesHandler)
             if self.minutes.handle(msg_id, text, sender_id):
                 return
 
-            # C. Task Management (Process Intent)
+            # D. Task Management (Process Intent)
             response = self._process_task_command(clean_text, mentions, sender_id, sender_name)
             if response:
                 self.im.reply(msg_id, response)

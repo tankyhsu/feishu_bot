@@ -126,3 +126,53 @@ A: {{"action": "query", "params": {{}}}}
         except Exception as e:
             logging.error(f"❌ LLM Inference Error: {e}")
             return None
+
+    def analyze_rss(self, articles_text):
+        """
+        Analyze RSS articles and return structured JSON.
+        """
+        if not self.client:
+            return None
+
+        system_prompt = """
+        You are an AI RSS Assistant.
+        Your task is to analyze a list of articles and return a STRICT JSON object.
+
+        Task:
+        1. Filter out ads, recruiting, or low-value content.
+        2. For valid articles:
+           - Rewrite title to be short and catchy (Chinese).
+           - Summarize content into one sentence (Chinese).
+           - Keep track of the original index.
+        3. Generate a "daily_insight" (Chinese) based on the overall trend.
+
+        Output Format (JSON):
+        {
+            "daily_insight": "今日AI趋势...",
+            "articles": [
+                {
+                    "original_index": 1, 
+                    "title": "中文标题",
+                    "summary": "中文摘要",
+                    "category": "AI / Tech / Life"
+                }
+            ]
+        }
+        """
+
+        user_prompt = f"Articles:\n{articles_text}"
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3
+            )
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            logging.error(f"❌ RSS Analysis Error: {e}")
+            return None

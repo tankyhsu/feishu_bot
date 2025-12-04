@@ -44,3 +44,11 @@ class Config:
     @property
     def LLM_MODEL(self):
         return self.data.get("LLM_MODEL", "deepseek-chat")
+
+    @property
+    def FEEDS(self):
+        return self.data.get("FEEDS", [])
+
+    @property
+    def DAILY_PUSH_CHAT_ID(self):
+        return self.data.get("DAILY_PUSH_CHAT_ID")

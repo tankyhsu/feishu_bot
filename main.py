@@ -8,6 +8,7 @@ from services.minutes_service import MinutesService
 from services.doc_service import DocService
 from services.im_service import IMService
 from services.llm_service import LLMParser
+from services.rss_service import RSSService
 from handlers.minutes_handler import MinutesHandler
 from handlers.message_handler import MessageHandler
 
@@ -45,10 +46,11 @@ def main():
         base_url=config.LLM_BASE_URL,
         model=config.LLM_MODEL
     )
+    rss_service = RSSService(config, llm_service, doc_service)
 
     # 4. Init Handlers
     minutes_handler = MinutesHandler(minutes_service, doc_service, im_service)
-    message_handler = MessageHandler(config, im_service, task_service, llm_service, minutes_handler)
+    message_handler = MessageHandler(config, im_service, task_service, llm_service, minutes_handler, rss_service)
 
     # 5. Register Event Callback
     event_handler = lark.EventDispatcherHandler.builder("", "") \

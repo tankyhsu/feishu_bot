@@ -1,6 +1,7 @@
 import requests
 import json
 import logging
+from io import BytesIO
 
 class DocService:
     def __init__(self, app_id, app_secret):
@@ -37,6 +38,83 @@ class DocService:
         except Exception as e:
             logging.error(f"Create doc exception: {e}")
             return None
+
+    def upload_image_from_url(self, img_url, parent_type="docx_image", parent_node=""):
+        """Download image from URL and upload to Feishu"""
+        token = self.get_tenant_token()
+        if not token: return None
+
+        try:
+            # 1. Download
+            # Add a timeout and user-agent to avoid blocking
+            down_resp = requests.get(img_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+            if down_resp.status_code != 200:
+                return None
+            image_data = down_resp.content
+            
+            # 2. Upload
+            url = "https://open.feishu.cn/open-apis/drive/v1/medias/upload_all"
+            headers = {"Authorization": f"Bearer {token}"}
+            
+            # Feishu requires multipart/form-data. 
+            # field name must be 'file'
+            files = {
+                'file': ('image.jpg', BytesIO(image_data), 'image/jpeg')
+            }
+            data = {
+                'file_name': 'image.jpg',
+                'parent_type': parent_type,
+                'parent_node': parent_node, 
+                'size': len(image_data)
+            }
+            
+            up_resp = requests.post(url, headers=headers, files=files, data=data)
+            if up_resp.status_code == 200 and up_resp.json().get('code') == 0:
+                return up_resp.json()['data']['file_token']
+            else:
+                logging.error(f"Image upload failed: {up_resp.text}")
+        except Exception as e:
+            logging.error(f"Upload image exception: {e}")
+        return None
+
+    # --- Block Creators ---
+    def create_heading_block(self, text, level=2, link_url=None):
+        text_run = {"content": text}
+        if link_url:
+            text_run["text_element_style"] = {"link": {"url": link_url}}
+            
+        return {
+            "block_type": level + 2, # h1=3, h2=4, h3=5
+            f"heading{level}": {"elements": [{"type": 1, "text_run": text_run}]}
+        }
+
+    def create_text_block(self, text, link_url=None):
+        text_run = {"content": text}
+        if link_url:
+            text_run["text_element_style"] = {"link": {"url": link_url}}
+            
+        return {
+            "block_type": 2,
+            "text": {"elements": [{"type": 1, "text_run": text_run}]}
+        }
+
+    def create_quote_block(self, text):
+        return {
+            "block_type": 11, 
+            "quote": {"elements": [{"type": 1, "text_run": {"content": text}}]}
+        }
+
+    def create_divider_block(self):
+        return {
+            "block_type": 22, 
+            "divider": {}
+        }
+
+    def create_image_block(self, file_token):
+        return {
+            "block_type": 27,
+            "image": {"token": file_token}
+        }
 
     def parse_markdown_to_blocks(self, text):
         blocks = []
@@ -89,7 +167,11 @@ class DocService:
                 
         return blocks
 
-    def add_content(self, doc_id, markdown_text):
+    def add_content(self, doc_id, content_or_blocks):
+        """
+        Add content to doc.
+        content_or_blocks: can be a Markdown string OR a list of block dicts.
+        """
         token = self.get_tenant_token()
         if not token: return False
         
@@ -99,8 +181,12 @@ class DocService:
             "Content-Type": "application/json; charset=utf-8"
         }
         
-        # Parse blocks
-        children = self.parse_markdown_to_blocks(markdown_text)
+        # Determine input type
+        if isinstance(content_or_blocks, list):
+            children = content_or_blocks
+        else:
+            children = self.parse_markdown_to_blocks(content_or_blocks)
+            
         if not children: return True
         
         # Batch insert (Limit is usually 50 blocks per request, simple paging)
@@ -113,6 +199,7 @@ class DocService:
                 resp = requests.post(url, headers=headers, json=payload)
                 if resp.status_code != 200:
                     logging.error(f"Add blocks failed: {resp.text}")
+                    logging.error(f"Failed Payload: {json.dumps(payload, ensure_ascii=False)}")
             except Exception as e:
                  logging.error(f"Add blocks exception: {e}")
 
