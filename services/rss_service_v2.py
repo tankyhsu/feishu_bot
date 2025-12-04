@@ -2,6 +2,7 @@ import feedparser
 import time
 import logging
 import requests
+import re
 from datetime import datetime, timedelta
 
 class RSSServiceV2:
@@ -88,7 +89,7 @@ class RSSServiceV2:
                 image_map[len(blocks) - 1] = img_url # Track index in the flat list
             
             # Summary (Text)
-            summary_text = item.get("summary", "-")
+            summary_text = original_art.get("summary", "无摘要")
             blocks.append(self.doc.create_text_block(summary_text))
             
             # Link
@@ -152,4 +153,5 @@ class RSSServiceV2:
 
     def _clean_summary(self, entry):
         s = entry.get('summary', '')
+        s = re.sub('<[^<]+?>', '', s)
         return s.replace("\n", " ").strip()

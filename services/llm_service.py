@@ -142,7 +142,7 @@ A: {{"action": "query", "params": {{}}}}
         1. Filter out ads, recruiting, or low-value content.
         2. For valid articles:
            - Rewrite title to be short and catchy (Chinese).
-           - Summarize content into one sentence (Chinese).
+           - Classify the category.
            - Keep track of the original index.
         3. Generate a "daily_insight" (Chinese) based on the overall trend.
 
@@ -153,7 +153,6 @@ A: {{"action": "query", "params": {{}}}}
                 {
                     "original_index": 1, 
                     "title": "中文标题",
-                    "summary": "中文摘要",
                     "category": "AI / Tech / Life"
                 }
             ]
