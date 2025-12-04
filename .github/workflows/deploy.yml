@@ -1,0 +1,43 @@
+name: Deploy Dobby
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Deploy Dobby Service
+        run: |
+          echo "🚀 Starting Deployment..."
+          
+          # 1. Navigate to Project Directory
+          PROJECT_DIR="/Users/txu35/Documents/tools/feishu_bot"
+          cd "$PROJECT_DIR" || exit 1
+          
+          # 2. Pull Latest Code
+          echo "📥 Pulling code..."
+          git pull origin main
+          
+          # 3. Set up / Activate Virtual Environment
+          if [ ! -d "venv" ]; then
+              echo "🛠 Creating virtual environment..."
+              python3 -m venv venv
+          fi
+          
+          echo "🔌 Activating virtual environment..."
+          source venv/bin/activate
+          
+          # 4. Install Dependencies
+          echo "📦 Installing dependencies..."
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          
+          # 5. Restart Service
+          echo "🔄 Restarting service..."
+          # Ensure restart script is executable
+          chmod +x restart.sh stop.sh start.sh scripts/daily_push.py
+          ./restart.sh
+          
+          echo "✅ Deployment Complete!"
