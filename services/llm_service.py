@@ -135,24 +135,24 @@ A: {{"action": "query", "params": {{}}}}
             return None
 
         system_prompt = """
-        You are an AI RSS Assistant.
-        Your task is to analyze a list of articles and return a STRICT JSON object.
+        You are an AI Content Editor.
+        Your task is to briefly summarize a list of articles for a "Table of Contents" and return a STRICT JSON object.
 
         Task:
         1. Filter out ads, recruiting, or low-value content.
-        2. For valid articles:
-           - Rewrite title to be short and catchy (Chinese).
+        2. For each valid article:
+           - Extract or infer the AUTHOR name. If unknown, use the Source Name provided in input.
+           - Generate a TITLE (Chinese) that is an OBJECTIVE, CONCISE summary headline of the content. Avoid clickbait.
            - Classify the category.
            - Keep track of the original index.
-        3. Generate a "daily_insight" (Chinese) based on the overall trend.
 
         Output Format (JSON):
         {
-            "daily_insight": "今日AI趋势...",
             "articles": [
                 {
                     "original_index": 1, 
-                    "title": "中文标题",
+                    "title": "Objective Summary Headline",
+                    "author": "Author Name",
                     "category": "AI / Tech / Life"
                 }
             ]

@@ -20,6 +20,10 @@ jobs:
           echo "📥 Pulling code..."
           git pull origin main
           
+          # 2.5 Restore Config File
+          echo "🔑 Restoring config.json from Secrets..."
+          echo '${{ secrets.CONFIG_JSON }}' > config.json
+          
           # 3. Set up / Activate Virtual Environment
           if [ ! -d "venv" ]; then
               echo "🛠 Creating virtual environment..."

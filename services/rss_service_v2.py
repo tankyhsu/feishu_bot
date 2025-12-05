@@ -4,6 +4,7 @@ import logging
 import requests
 import re
 from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
 
 class RSSServiceV2:
     def __init__(self, config, llm_service, doc_service):
@@ -66,21 +67,45 @@ class RSSServiceV2:
         # 2. Build Blocks & Track Images
         blocks = []
         image_map = {} # { block_index: img_url }
-
-        # Intro
-        daily_insight = analysis.get("daily_insight", "今日无特殊洞察。")
-        blocks.append(self.doc.create_heading_block("每日洞察", 2))
-        blocks.append(self.doc.create_text_block(daily_insight))
+        toc_message_lines = [] # To store TOC for chat message
         
-        # Articles
-        for item in analysis.get("articles", []):
+        analyzed_items = analysis.get("articles", [])
+        
+        # --- SECTION 1: Table of Contents (Updated "Daily Insight" area) ---
+        if analyzed_items:
+            blocks.append(self.doc.create_heading_block("今日更新目录", 2))
+            
+            for i, item in enumerate(analyzed_items):
+                idx = item.get("original_index")
+                if idx is None or idx >= len(articles): continue
+                
+                author = item.get("author", articles[idx].get("source", "Unknown"))
+                title = item.get("title", articles[idx]["title"])
+                
+                # Format: 1. [Author] Title
+                toc_line = f"{i+1}. [{author}] {title}"
+                    
+                blocks.append(self.doc.create_text_block(toc_line))
+                toc_message_lines.append(toc_line)
+                
+            blocks.append(self.doc.create_divider_block())
+
+        # --- SECTION 2: Article Details ---
+        for item in analyzed_items:
+            # ... (rest is same)
             idx = item.get("original_index")
             if idx is None or idx >= len(articles): continue
             original_art = articles[idx]
             
             # Title (Clickable H3)
-            title_text = f"{item.get('title', original_art['title'])} ({item.get('category', 'General')})"
+            title_text = f"{item.get('title', original_art['title'])}"
             blocks.append(self.doc.create_heading_block(title_text, 3, link_url=original_art['link']))
+            
+            # Meta info: Author & Category
+            author_name = item.get("author", original_art.get("source", "Unknown"))
+            category = item.get("category", "General")
+            meta_text = f"👤 {author_name} | 🏷️ {category}"
+            blocks.append(self.doc.create_text_block(meta_text)) 
             
             # Image Placeholder (Create empty image block)
             img_url = original_art.get('image')
@@ -88,11 +113,11 @@ class RSSServiceV2:
                 blocks.append(self.doc.create_image_block(None))
                 image_map[len(blocks) - 1] = img_url # Track index in the flat list
             
-            # Summary (Text)
-            summary_text = original_art.get("summary", "无摘要")
+            # Summary (Text) - Use RSS Original Content (Cleaned)
+            summary_text = original_art.get("summary", "无内容")
             blocks.append(self.doc.create_text_block(summary_text))
             
-            # Link
+            # Link (Explicit)
             blocks.append(self.doc.create_text_block("🔗 阅读原文", original_art['link']))
             
             # Divider
@@ -105,9 +130,7 @@ class RSSServiceV2:
         # 4. Upload & Replace Images (The 3-step fix)
         logging.info(f"🖼️ Starting image upload for {len(image_map)} images...")
         
-        # Note: created_blocks might be longer/shorter if errors occurred, but typically it matches 1:1 for top-level blocks
-        # created_blocks is a list of {'block_id': '...', 'block_type': ...}
-        
+        # ... (image upload loop same as before)
         for blk_idx, img_url in image_map.items():
             if blk_idx >= len(created_blocks): continue
             
@@ -128,7 +151,14 @@ class RSSServiceV2:
                 logging.error(f"Failed to process image {img_url}: {e}")
 
         doc_url = f"https://feishu.cn/docx/{doc_id}"
-        return f"📅 **{date_str} AI 早报已生成**\n\n💡 {daily_insight}\n\n[📄 点击查看完整图文报告]({doc_url})"
+        
+        # Construct final message
+        msg_content = f"📅 **{date_str} AI 早报已生成**\n\n"
+        if toc_message_lines:
+            msg_content += "\n".join(toc_message_lines) + "\n\n"
+        msg_content += f"[📄 点击查看完整图文报告]({doc_url})"
+        
+        return msg_content
 
     def _extract_image_url(self, entry):
         if 'media_content' in entry:
@@ -153,5 +183,34 @@ class RSSServiceV2:
 
     def _clean_summary(self, entry):
         s = entry.get('summary', '')
-        s = re.sub('<[^<]+?>', '', s)
-        return s.replace("\n", " ").strip()
+        if not s:
+            return ""
+
+        soup = BeautifulSoup(s, 'html.parser')
+
+        # 1. Remove unwanted tags completely (like scripts, styles)
+        for unwanted_tag in soup(['script', 'style']):
+            unwanted_tag.decompose()
+
+        # 2. Handle <br> tags: replace with newline
+        for br in soup.find_all('br'):
+            br.replace_with('\n')
+
+        # 3. Handle <a> tags: convert to "link_text (link_href)" format
+        for a_tag in soup.find_all('a'):
+            link_text = a_tag.get_text(strip=True)
+            link_href = a_tag.get('href')
+            if link_text and link_href:
+                a_tag.replace_with(f"{link_text} ({link_href})")
+            elif link_href:
+                a_tag.replace_with(f"Link ({link_href})")
+            else:
+                a_tag.replace_with(link_text)
+        
+        # 4. Get plain text, preserving newlines
+        cleaned_text = soup.get_text(separator=' ')
+
+        # 5. Post-process cleanup
+        cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text) # Remove excessive blank lines
+        cleaned_text = re.sub(r' {2,}', ' ', cleaned_text) # Remove multiple spaces
+        return cleaned_text.strip()

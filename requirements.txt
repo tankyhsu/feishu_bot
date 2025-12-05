@@ -2,3 +2,5 @@ lark-oapi>=1.0.0
 requests>=2.25.0
 feedparser>=6.0.10
 supervisor
+openai
+beautifulsoup4
