@@ -1,33 +1,51 @@
 #!/bin/bash
 
-PLIST_NAME="com.feishu.bot.supervisor.plist"
 DEST_DIR="$HOME/Library/LaunchAgents"
-DEST_FILE="$DEST_DIR/$PLIST_NAME"
 
-echo "🔧 配置开机自启 (Launchd)..."
+# --- Function to set up a launchd service ---
+setup_service() {
+    local plist_name=$1
+    local service_label=$(basename "$plist_name" .plist)
+    local dest_file="$DEST_DIR/$plist_name"
 
-# 1. 确保目录存在
+    echo "---"
+    echo "🔧 配置服务: $service_label"
+
+    # 1. If service exists, unload it first for a clean update
+    if launchctl list | grep -q "$service_label"; then
+        echo "🔄 Unloading existing service..."
+        launchctl unload "$dest_file" 2>/dev/null
+    fi
+
+    # 2. Copy the plist file
+    echo "📂 Copying plist to $DEST_DIR"
+    cp "$plist_name" "$DEST_DIR/"
+
+    # 3. Load the service
+    echo "🚀 Loading new service..."
+    launchctl load "$dest_file"
+
+    # 4. Verify
+    if launchctl list | grep -q "$service_label"; then
+        echo "✅ Service '$service_label' is now loaded."
+    else
+        echo "❌ Failed to load service '$service_label'. Please check logs."
+    fi
+}
+
+# --- Main Script ---
+
+echo "🚀 开始配置飞书机器人后台服务 (launchd)..."
+
+# Ensure the target directory exists
 mkdir -p "$DEST_DIR"
 
-# 2. 如果服务已存在，先卸载 (方便更新配置)
-if launchctl list | grep -q "com.feishu.bot.supervisor"; then
-    echo "🔄 发现旧服务，正在卸载..."
-    launchctl unload "$DEST_FILE" 2>/dev/null
-fi
+# Setup the main bot supervisor service
+setup_service "com.feishu.bot.supervisor.plist"
 
-# 3. 复制 Plist 文件
-echo "📂 复制配置文件到 $DEST_DIR..."
-cp "$PLIST_NAME" "$DEST_DIR/"
+# Setup the daily push scheduled task
+setup_service "com.feishu.bot.daily_push.plist"
 
-# 4. 加载服务
-echo "🚀 注册并启动服务..."
-launchctl load "$DEST_FILE"
-
-# 5. 验证
-if launchctl list | grep -q "com.feishu.bot.supervisor"; then
-    echo "✅ 开机自启配置成功！"
-    echo "🤖 机器人现在已在后台运行，并且每次登录都会自动启动。"
-    echo "📝 日志路径: logs/launchd.out"
-else
-    echo "❌ 配置失败，请检查报错信息。"
-fi
+echo "---"
+echo "✅ 所有服务配置完成!"
+echo "🤖 机器人主进程将在后台运行，每日推送任务已设定。"

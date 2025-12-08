@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.feishu.bot.daily_push</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/tianqi/Documents/tools/feishu_bot/venv/bin/python</string>
+        <string>/Users/tianqi/Documents/tools/feishu_bot/scripts/daily_push.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/tianqi/Documents/tools/feishu_bot</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>10</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/tianqi/Documents/tools/feishu_bot/logs/daily_push.out</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/tianqi/Documents/tools/feishu_bot/logs/daily_push.err</string>
+</dict>
+</plist>

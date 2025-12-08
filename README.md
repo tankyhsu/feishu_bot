@@ -10,7 +10,7 @@
 - **精美文档生成**: 自动生成图文并茂的飞书云文档（含标题、摘要、原文链接），排版整洁美观。
 - **群组推送**: 
     - **被动触发**: 在群里发送 "RSS" 或 "早报" 即可立即获取。
-    - **定时推送**: 支持 Crontab 定时任务，每天早晨准时推送早报文档链接。
+    - **定时推送**: 支持 launchd 定时任务，每天早晨准时推送早报文档链接。
 
 ### 2. 🧠 AI 语义理解 (DeepSeek)
 - **自然语言创建**: "帮我安排明天修一下首页Bug，挺急的" -> 自动识别任务、时间、紧急程度。
@@ -31,7 +31,7 @@
 - **语言**: Python 3.9+
 - **框架**: `lark-oapi`, `feedparser`
 - **AI 模型**: DeepSeek V3
-- **进程管理**: `Supervisor`
+- **进程管理**: `Supervisor` (通过 `launchd` 管理)
 - **数据存储**: 飞书多维表格 (Bitable) + 飞书云文档 (Docx)
 
 ### 文件结构
@@ -46,7 +46,7 @@
 │   ├── doc_service.py  # 飞书文档操作 (Block 构建)
 │   └── ...
 ├── scripts/            # 工具脚本
-│   └── daily_push.py   # 定时推送脚本 (Crontab)
+│   └── daily_push.py   # 定时推送脚本
 └── supervisord.conf    # 进程守护配置
 ```
 
@@ -79,16 +79,18 @@ pip install -r requirements.txt
 }
 ```
 
-### 3. 启动服务
-*   **一键启动 (后台守护)**: `./start.sh`
+### 3. 启动与定时任务
+macOS 用户可直接运行安装脚本，一键完成主程序守护和定时任务的配置。
+
+*   **一键安装/启动 (后台守护)**: `./install_autostart.sh`
+*   **手动启动 (前台调试)**: `./start.sh`
 *   **停止服务**: `./stop.sh`
 *   **重启服务**: `./restart.sh`
 
-### 4. 设置 RSS 定时推送
-编辑 Crontab (`crontab -e`) 添加定时任务（例如每天早上 8 点）：
-```cron
-0 8 * * * cd /path/to/feishu_bot && /usr/bin/python3 scripts/daily_push.py >> logs/daily_push.log 2>&1
-```
+`install_autostart.sh` 会自动配置 `launchd` 服务，实现：
+1.  **机器人主进程守护**: 确保 `main.py` 持续在后台运行。
+2.  **RSS 早报定时推送**: 每天上午 10 点自动执行 `scripts/daily_push.py`。
+
 
 ## 📝 更新日志
 
