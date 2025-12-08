@@ -150,3 +150,21 @@ def execute(context, input_data):
 
     return result
 ```
+
+## 4. 系统日志 (System Logging)
+
+项目采用集中式的日志管理机制，以支持长期运行和问题排查。
+
+### 4.1 日志策略
+*   **集中化配置**: 所有模块统一使用 `utils.logger.setup_logging(config)` 进行初始化。
+*   **文件轮转 (Rotation)**: 使用 `RotatingFileHandler` 防止日志无限增长。
+    *   默认大小限制: 10MB
+    *   默认保留备份数: 5个
+*   **配置项**: 可在 `config.json` 中自定义:
+    *   `LOG_FILE`: 日志文件路径 (默认 `logs/bot.log`)
+    *   `LOG_MAX_BYTES`: 单个文件大小上限 (Bytes)
+    *   `LOG_BACKUP_COUNT`: 保留文件数量
+    *   `LOG_LEVEL`: 日志级别 (INFO/DEBUG/ERROR)
+
+### 4.2 Supervisor 集成
+在 `supervisord.conf` 中，已配置 `stdout_logfile_maxbytes` 和 `stderr_logfile_maxbytes`，确保 Supervisor 捕获的控制台输出（Console Output）也会自动轮转，避免磁盘占满。

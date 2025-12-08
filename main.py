@@ -3,6 +3,7 @@ import lark_oapi as lark
 from lark_oapi.ws import Client
 
 from config import Config
+from utils.logger import setup_logging
 from services.task_service import TaskService
 from services.minutes_service import MinutesService
 from services.doc_service_v2 import DocServiceV2 as DocService
@@ -12,18 +13,19 @@ from services.rss_service_v2 import RSSServiceV2 as RSSService
 from handlers.minutes_handler import MinutesHandler
 from handlers.message_handler import MessageHandler
 
-# Configure Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(threadName)s] - %(message)s')
-
 def main():
     # 1. Load Config
     try:
         config = Config()
     except Exception as e:
+        logging.basicConfig(level=logging.INFO)
         logging.error(f"Failed to load config: {e}")
         return
 
-    # 2. Init Lark Client
+    # 2. Setup Logging
+    setup_logging(config)
+
+    # 3. Init Lark Client
     client = lark.Client.builder() \
         .app_id(config.APP_ID) \
         .app_secret(config.APP_SECRET) \

@@ -52,3 +52,19 @@ class Config:
     @property
     def DAILY_PUSH_CHAT_ID(self):
         return self.data.get("DAILY_PUSH_CHAT_ID")
+
+    @property
+    def LOG_FILE(self):
+        return self.data.get("LOG_FILE", "logs/bot.log")
+
+    @property
+    def LOG_LEVEL(self):
+        return self.data.get("LOG_LEVEL", "INFO")
+
+    @property
+    def LOG_MAX_BYTES(self):
+        return self.data.get("LOG_MAX_BYTES", 10 * 1024 * 1024)  # Default 10MB
+
+    @property
+    def LOG_BACKUP_COUNT(self):
+        return self.data.get("LOG_BACKUP_COUNT", 5)

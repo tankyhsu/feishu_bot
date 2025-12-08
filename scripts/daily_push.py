@@ -7,23 +7,25 @@ import lark_oapi as lark
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import Config
+from utils.logger import setup_logging
 from services.im_service import IMService
 from services.doc_service_v2 import DocServiceV2 as DocService
 from services.llm_service import LLMParser
 from services.rss_service_v2 import RSSServiceV2 as RSSService
 
-# Configure Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 def main():
-    logging.info("🚀 Starting Daily RSS Push...")
-
     # 1. Load Config
     try:
         config = Config()
     except Exception as e:
+        logging.basicConfig(level=logging.INFO)
         logging.error(f"Failed to load config: {e}")
         return
+
+    # Setup Logging
+    setup_logging(config)
+    
+    logging.info("🚀 Starting Daily RSS Push...")
 
     chat_id = config.DAILY_PUSH_CHAT_ID
     if not chat_id:
