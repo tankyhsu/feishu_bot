@@ -50,46 +50,75 @@
 └── supervisord.conf    # 进程守护配置
 ```
 
-## 🚀 快速开始
+## 部署 (Deployment)
 
-### 1. 安装依赖
-```bash
-pip install -r requirements.txt
-```
+本项目支持 macOS 本地部署，使用 `launchd` 进行进程守护和定时任务调度。
 
-### 2. 配置 `config.json`
-在项目根目录创建 `config.json`：
-```json
-{
-  "APP_ID": "cli_xxx",
-  "APP_SECRET": "xxx",
-  "BITABLE_APP_TOKEN": "xxx",
-  "TABLE_ID": "xxx",
-  "LLM_API_KEY": "sk-xxx",
-  "LLM_BASE_URL": "https://api.deepseek.com",
-  "LLM_MODEL": "deepseek-chat",
-  "DAILY_PUSH_CHAT_ID": "oc_xxx",  // 接收早报的群ID
-  "FEEDS": [
-    {
-      "name": "TechCrunch",
-      "url": "https://techcrunch.com/feed/",
-      "category": "🚀 科技前沿"
-    }
-  ]
-}
-```
+### 1. 自动部署
 
-### 3. 启动与定时任务
-macOS 用户可直接运行安装脚本，一键完成主程序守护和定时任务的配置。
+本项目提供了自动安装脚本，支持在任意目录下部署，脚本会自动识别当前路径并配置系统服务。
 
-*   **一键安装/启动 (后台守护)**: `./install_autostart.sh`
-*   **手动启动 (前台调试)**: `./start.sh`
-*   **停止服务**: `./stop.sh`
-*   **重启服务**: `./restart.sh`
+1.  **准备代码**
+    将代码克隆到你希望部署的目录（建议使用用户主目录下的文件夹，例如 `~/feishu_bot`，以避免权限问题）：
+    ```bash
+    git clone https://github.com/your-repo/feishu_bot.git ~/feishu_bot
+    cd ~/feishu_bot
+    ```
 
-`install_autostart.sh` 会自动配置 `launchd` 服务，实现：
-1.  **机器人主进程守护**: 确保 `main.py` 持续在后台运行。
-2.  **RSS 早报定时推送**: 每天上午 10 点自动执行 `scripts/daily_push.py`。
+2.  **创建环境**
+    ```bash
+    # 创建虚拟环境
+    python3 -m venv venv
+    
+    # 安装依赖
+    ./venv/bin/pip install -r requirements.txt
+    
+    # 安装 supervisor (用于进程守护)
+    ./venv/bin/pip install supervisor
+    ```
+
+3.  **安装服务**
+    直接运行安装脚本即可，无需手动修改配置文件路径：
+    ```bash
+    sh install_autostart.sh
+    ```
+    
+    脚本会执行以下操作：
+    *   自动识别当前项目路径。
+    *   生成适配当前路径的系统配置文件 (`.plist`)。
+    *   注册后台守护进程 (`com.feishu.bot.supervisor`)。
+    *   注册每日定时推送任务 (`com.feishu.bot.daily_push`)。
+
+### 2. 管理服务
+
+*   **查看运行日志**：
+    日志默认位于项目目录下的 `logs/` 文件夹中。
+    ```bash
+    # 查看主程序日志
+    tail -f logs/bot_out.log logs/bot_err.log
+    
+    # 查看 Supervisor 守护进程日志
+    tail -f logs/supervisord.log
+    ```
+
+*   **手动停止/重启**：
+    可以使用提供的辅助脚本：
+    ```bash
+    sh stop.sh    # 停止服务
+    sh start.sh   # 启动服务
+    sh restart.sh # 重启服务
+    ```
+
+*   **卸载服务**：
+    如果需要移除自动启动任务：
+    ```bash
+    launchctl unload ~/Library/LaunchAgents/com.feishu.bot.supervisor.plist
+    launchctl unload ~/Library/LaunchAgents/com.feishu.bot.daily_push.plist
+    rm ~/Library/LaunchAgents/com.feishu.bot.supervisor.plist
+    rm ~/Library/LaunchAgents/com.feishu.bot.daily_push.plist
+    ```
+
+## 目录结构
 
 
 ## 📝 更新日志

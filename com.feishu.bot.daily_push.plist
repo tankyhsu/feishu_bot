@@ -7,24 +7,24 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/tianqi/Documents/tools/feishu_bot/venv/bin/python</string>
-        <string>/Users/tianqi/Documents/tools/feishu_bot/scripts/daily_push.py</string>
+        <string>__PROJECT_DIR__/venv/bin/python</string>
+        <string>__PROJECT_DIR__/scripts/daily_push.py</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/tianqi/Documents/tools/feishu_bot</string>
+    <string>__PROJECT_DIR__</string>
 
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>10</integer>
+        <integer>11</integer>
         <key>Minute</key>
-        <integer>0</integer>
+        <integer>30</integer>
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/tianqi/Documents/tools/feishu_bot/logs/daily_push.out</string>
+    <string>__PROJECT_DIR__/logs/daily_push.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/tianqi/Documents/tools/feishu_bot/logs/daily_push.err</string>
+    <string>__PROJECT_DIR__/logs/daily_push.err</string>
 </dict>
 </plist>

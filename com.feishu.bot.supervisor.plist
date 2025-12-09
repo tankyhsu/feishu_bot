@@ -6,9 +6,9 @@
     <string>com.feishu.bot.supervisor</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/txu35/Library/Python/3.9/bin/supervisord</string>
+        <string>__PROJECT_DIR__/venv/bin/supervisord</string>
         <string>-c</string>
-        <string>/Users/txu35/Documents/tools/feishu_bot/supervisord.conf</string>
+        <string>__PROJECT_DIR__/supervisord.conf</string>
         <string>-n</string> 
     </array>
     <key>RunAtLoad</key>
@@ -16,8 +16,8 @@
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/Users/txu35/Documents/tools/feishu_bot/logs/launchd.out</string>
+    <string>__PROJECT_DIR__/logs/launchd.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/txu35/Documents/tools/feishu_bot/logs/launchd.err</string>
+    <string>__PROJECT_DIR__/logs/launchd.err</string>
 </dict>
 </plist>

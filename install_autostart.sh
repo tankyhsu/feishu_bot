@@ -1,6 +1,10 @@
 #!/bin/bash
 
+# 获取脚本所在的绝对路径作为项目根目录
+PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DEST_DIR="$HOME/Library/LaunchAgents"
+
+echo "📂 检测到项目目录: $PROJECT_DIR"
 
 # --- Function to set up a launchd service ---
 setup_service() {
@@ -11,15 +15,16 @@ setup_service() {
     echo "---"
     echo "🔧 配置服务: $service_label"
 
-    # 1. If service exists, unload it first for a clean update
+    # 1. Unload existing service
     if launchctl list | grep -q "$service_label"; then
         echo "🔄 Unloading existing service..."
         launchctl unload "$dest_file" 2>/dev/null
     fi
 
-    # 2. Copy the plist file
-    echo "📂 Copying plist to $DEST_DIR"
-    cp "$plist_name" "$DEST_DIR/"
+    # 2. Process and copy plist
+    # Replace __PROJECT_DIR__ with actual path and save to destination
+    echo "📝 Generating config with path: $PROJECT_DIR"
+    sed "s|__PROJECT_DIR__|$PROJECT_DIR|g" "$PROJECT_DIR/$plist_name" > "$dest_file"
 
     # 3. Load the service
     echo "🚀 Loading new service..."
@@ -40,12 +45,10 @@ echo "🚀 开始配置飞书机器人后台服务 (launchd)..."
 # Ensure the target directory exists
 mkdir -p "$DEST_DIR"
 
-# Setup the main bot supervisor service
+# Setup services
 setup_service "com.feishu.bot.supervisor.plist"
-
-# Setup the daily push scheduled task
 setup_service "com.feishu.bot.daily_push.plist"
 
 echo "---"
 echo "✅ 所有服务配置完成!"
-echo "🤖 机器人主进程将在后台运行，每日推送任务已设定。"
+echo "🤖 服务已绑定到目录: $PROJECT_DIR"
