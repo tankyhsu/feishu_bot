@@ -128,7 +128,13 @@
 
 ## 📝 更新日志
 
-### v2.5 (Current)
+### v2.6 (Current)
+- **Fix**: 修复飞书原生任务 (Native Task) 创建失败的问题 (修正 `due.timestamp` 和 `role` 参数)。
+- **Feature**: 增强时间解析能力，支持精确到小时分钟的截止时间 (e.g., "今晚八点吃药" -> `YYYY-MM-DD 20:00:00`)。
+- **Optimization**: 优化 LLM Prompt，在上下文中注入当前精确时间，提升时间实体提取准确率。
+- **Debug**: 增加任务创建接口的详细调试日志。
+
+### v2.5
 - **Feature**: 增强语义理解能力，支持自然语言查找和操作任务（Semantic Task Update）。
 - **Optimization**: 优化任务创建 Prompt，自动提取核心任务名，剔除冗余指令词。
 - **Fix**: 修复了服务初始化顺序和依赖注入问题。

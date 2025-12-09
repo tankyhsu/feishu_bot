@@ -126,8 +126,11 @@ class MessageHandler:
                 due = None
                 if p.get("due_date"):
                     try:
-                        due = int(datetime.strptime(p.get("due_date"), "%Y-%m-%d").timestamp()*1000)
-                    except: pass
+                        due = int(datetime.strptime(p.get("due_date"), "%Y-%m-%d %H:%M:%S").timestamp()*1000)
+                    except:
+                        try:
+                            due = int(datetime.strptime(p.get("due_date"), "%Y-%m-%d").timestamp()*1000)
+                        except: pass
                 
                 return self.task.handle_create(
                     p.get("task_name"), 

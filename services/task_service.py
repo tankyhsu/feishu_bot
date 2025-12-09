@@ -124,14 +124,25 @@ class TaskService:
         url_task = "https://open.feishu.cn/open-apis/task/v2/tasks"
         payload = {
             "summary": task_name, 
-            "members": [{"id": o, "type": "user"} for o in owner_ids]
+            "members": [{"id": o, "type": "user", "role": "assignee"} for o in owner_ids]
         }
-        if due_ts: payload["due"] = {"time": str(due_ts)}
+        if due_ts: payload["due"] = {"timestamp": str(due_ts)}
         
         try:
             r = requests.post(url_task, headers={"Authorization": f"Bearer {token}"}, json=payload)
-            if r.status_code == 200 and r.json().get("code")==0: return "(原生任务✅)"
-        except: pass
+            logging.info(f"🔗 Create Native Task Response: Code={r.status_code}, Body={r.text}")
+            
+            if r.status_code == 200:
+                res_json = r.json()
+                if res_json.get("code") == 0:
+                    return "(原生任务✅)"
+                else:
+                    logging.error(f"❌ Create Native Task API Error: {res_json}")
+            else:
+                logging.error(f"❌ Create Native Task HTTP Error: {r.status_code} - {r.text}")
+                
+        except Exception as e:
+            logging.error(f"❌ Create Native Task Exception: {e}")
         return "(原生任务❌)"
 
     def handle_create(self, task_name, quadrant, due_ts, owner_ids, create_native=False):

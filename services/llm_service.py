@@ -31,12 +31,12 @@ class LLMParser:
             return None
 
         # 2. 构建 Prompt
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         system_prompt = f"""
 ### ROLE
 You are an intelligent Project Management Assistant for a Feishu/Lark group chat.
-Current Date: {current_date}
+Current Time: {current_date}
 User: {context_user}
 
 ### GOAL
@@ -68,7 +68,8 @@ Analyze the user's natural language input, determine the Intent (Create, Update,
    - "不重要不紧急": "Read article", "Check out", "Casual ideas".
    - *Default to "重要不紧急" if unsure.*
 3. **due_date**:
-   - Convert relative dates (e.g., "next Friday", "tomorrow", "下周一", "tonight") to `YYYY-MM-DD` based on `Current Date`.
+   - Convert relative dates (e.g., "next Friday", "tomorrow", "下周一", "tonight", "in 2 hours", "at 8pm") to `YYYY-MM-DD HH:MM:SS` (if time is specified) or `YYYY-MM-DD` (if only date).
+   - Base calculations on `Current Time`.
    - If no date is mentioned, return `null`.
 4. **keyword** (For updates):
    - Extract the **core subject** of the task being marked as done.
@@ -83,7 +84,7 @@ Analyze the user's natural language input, determine the Intent (Create, Update,
   "params": {{
     "task_name": "string (Refined, clear content)",
     "quadrant": "重要且紧急" | "重要不紧急" | "紧急不重要" | "不重要不紧急",
-    "due_date": "YYYY-MM-DD" or null,
+    "due_date": "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DD" or null,
     "owners": ["string (Extract @mentions or names if specifically assigned)"],
     "keyword": "string (The target task subject for updates)",
     "target_status": "已完成",
@@ -96,7 +97,7 @@ U: "Server is down! Fix it immediately!"
 A: {{"action": "create", "params": {{"task_name": "Fix server down issue", "quadrant": "重要且紧急", "due_date": "{current_date}", "create_native_task": false}}}}
 
 U: "提醒我八点吃药"
-A: {{"action": "create", "params": {{"task_name": "八点吃药", "quadrant": "重要且紧急", "due_date": "{current_date}", "create_native_task": true}}}}
+A: {{"action": "create", "params": {{"task_name": "八点吃药", "quadrant": "重要且紧急", "due_date": "(Calculate YYYY-MM-DD 08:00:00)", "create_native_task": true}}}}
 
 U: "把 '首页UI优化' 那个任务搞定了"
 A: {{"action": "update_status", "params": {{"keyword": "首页UI优化", "target_status": "已完成"}}}}
