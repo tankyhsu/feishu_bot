@@ -8,9 +8,10 @@ from lark_oapi.api.bitable.v1.model import (
 )
 
 class TaskService:
-    def __init__(self, client, config):
+    def __init__(self, client, config, llm_service=None):
         self.client = client
         self.config = config
+        self.llm = llm_service  # Inject LLM service
         self.app_token = config.BITABLE_APP_TOKEN
         self.table_id = config.TABLE_ID
         self.app_id = config.APP_ID
@@ -63,24 +64,55 @@ class TaskService:
             msg.append(f"- [{f.get('状态','待办')}] {name} ({f.get('四象限','P1')})")
         return "\n".join(msg)
 
-    def handle_mark_done(self, open_id, keyword):
+    def handle_update_status(self, open_id, keyword, target_status="已完成"):
         req = SearchAppTableRecordRequest.builder().app_token(self.app_token).table_id(self.table_id).request_body(SearchAppTableRecordRequestBody.builder().build()).build()
         resp = self.client.bitable.v1.app_table_record.search(req)
         if not resp.success(): return "❌ 查找失败"
         
-        target = None
+        candidates = []
+        # 1. Collect all candidates for this user that are NOT in target status
         for item in resp.data.items or []:
             f = item.fields
-            name = self.get_text_value(f.get("任务描述"))
-            if keyword in name and f.get("状态") != "已完成" and any(o.get("id")==open_id for o in f.get("负责人",[])):
-                target = item
-                break
+            current_status = f.get("状态")
+            if current_status != target_status and any(o.get("id")==open_id for o in f.get("负责人",[])):
+                name = self.get_text_value(f.get("任务描述"))
+                candidates.append({
+                    "id": item.record_id,
+                    "name": name,
+                    "status": current_status,
+                    "item": item
+                })
         
-        if not target: return f"🔍 未找到 '{keyword}'"
+        target_record_id = None
+        target_task_name = ""
+
+        # 2. Strategy A: Semantic Match via LLM
+        if self.llm and candidates:
+            # Pass user keyword (query) and candidates to LLM
+            matched_id = self.llm.match_task(keyword, [{"id": c["id"], "name": c["name"], "status": c["status"]} for c in candidates])
+            if matched_id:
+                target_record_id = matched_id
+                # Find name for response
+                for c in candidates:
+                    if c["id"] == matched_id:
+                        target_task_name = c["name"]
+                        break
+
+        # 3. Strategy B: Fallback to simple keyword containment (if LLM fails or returns None)
+        if not target_record_id:
+            for c in candidates:
+                if keyword in c["name"]:
+                    target_record_id = c["id"]
+                    target_task_name = c["name"]
+                    break
         
-        up_req = UpdateAppTableRecordRequest.builder().app_token(self.app_token).table_id(self.table_id).record_id(target.record_id).request_body(AppTableRecord.builder().fields({"状态": "已完成"}).build()).build()
+        if not target_record_id: 
+            return f"🔍 未找到匹配任务: '{keyword}'"
+        
+        # 4. Update
+        up_req = UpdateAppTableRecordRequest.builder().app_token(self.app_token).table_id(self.table_id).record_id(target_record_id).request_body(AppTableRecord.builder().fields({"状态": target_status}).build()).build()
         if self.client.bitable.v1.app_table_record.update(up_req).success():
-            return f"✅ 已完成: {self.get_text_value(target.fields.get('任务描述'))}"
+            return f"✅ 状态更新为[{target_status}]: {target_task_name}"
         return "❌ 更新失败"
 
     def create_native_task(self, task_name, due_ts, owner_ids):

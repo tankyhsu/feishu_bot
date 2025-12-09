@@ -32,26 +32,38 @@ def main():
         .log_level(lark.LogLevel.INFO) \
         .build()
 
-    # 3. Init Services
-    im_service = IMService(client)
-    task_service = TaskService(client, config)
-    minutes_service = MinutesService(
-        config.APP_ID, 
-        config.APP_SECRET,
-        config.LLM_API_KEY,
-        config.LLM_BASE_URL,
-        config.LLM_MODEL
-    )
-    doc_service = DocService(config.APP_ID, config.APP_SECRET)
+    # Initialize LLMParser
     llm_service = LLMParser(
         api_key=config.LLM_API_KEY,
         base_url=config.LLM_BASE_URL,
         model=config.LLM_MODEL
     )
-    rss_service = RSSService(config, llm_service, doc_service)
 
-    # 4. Init Handlers
+    # 4. Init Services
+    # Core Services
+    im_service = IMService(client)
+    doc_service = DocService(config.APP_ID, config.APP_SECRET)
+    
+    # Feature Services
+    # TaskService now requires llm_service for semantic matching
+    task_service = TaskService(client, config, llm_service=llm_service) 
+    
+    # RSS Service
+    rss_service = RSSService(config, llm_service, doc_service)
+    
+    # Minutes Service (Previously missing initialization)
+    minutes_service = MinutesService(
+        app_id=config.APP_ID,
+        app_secret=config.APP_SECRET,
+        llm_key=config.LLM_API_KEY,
+        llm_base=config.LLM_BASE_URL,
+        llm_model=config.LLM_MODEL
+    )
+
+    # 5. Init Handlers
+    # MinutesHandler requires specific services, not client/config
     minutes_handler = MinutesHandler(minutes_service, doc_service, im_service)
+    
     message_handler = MessageHandler(config, im_service, task_service, llm_service, minutes_handler, rss_service)
 
     # 5. Register Event Callback

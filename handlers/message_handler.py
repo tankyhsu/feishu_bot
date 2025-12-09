@@ -100,7 +100,11 @@ class MessageHandler:
                 return self.task.handle_query(sender_id)
             
             if action == "update_status":
-                return self.task.handle_mark_done(sender_id, p.get("keyword"))
+                return self.task.handle_update_status(
+                    open_id=sender_id, 
+                    keyword=p.get("keyword"), 
+                    target_status=p.get("target_status", "已完成")
+                )
             
             if action == "create":
                 # Resolve Owners
