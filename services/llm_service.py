@@ -184,3 +184,52 @@ Identify which task from the CANDIDATE LIST the user is referring to in their QU
         except Exception as e:
             logging.error(f"❌ Semantic Match Error: {e}")
             return None
+
+    def analyze_rss(self, articles_text):
+        """
+        Analyze RSS articles and return structured JSON.
+        """
+        if not self.client:
+            return None
+
+        system_prompt = """
+        You are an AI Content Editor.
+        Your task is to briefly summarize a list of articles for a "Table of Contents" and return a STRICT JSON object.
+
+        Task:
+        1. Filter out ads, recruiting, or low-value content.
+        2. For each valid article:
+           - Extract or infer the AUTHOR name. If unknown, use the Source Name provided in input.
+           - Generate a TITLE (Chinese) that is an OBJECTIVE, CONCISE summary headline of the content. Avoid clickbait.
+           - Classify the category.
+           - Keep track of the original index.
+
+        Output Format (JSON):
+        {
+            "articles": [
+                {
+                    "original_index": 1, 
+                    "title": "Objective Summary Headline",
+                    "author": "Author Name",
+                    "category": "AI / Tech / Life"
+                }
+            ]
+        }
+        """
+
+        user_prompt = f"Articles:\n{articles_text}"
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3
+            )
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            logging.error(f"❌ RSS Analysis Error: {e}")
+            return None

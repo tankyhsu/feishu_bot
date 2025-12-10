@@ -38,8 +38,8 @@ class RSSServiceV2:
                     if published_time and (now - published_time <= self.time_window):
                         articles.append({
                             'source': name,
-                            'title': entry.title,
-                            'link': entry.link,
+                            'title': getattr(entry, 'title', '无标题'),
+                            'link': getattr(entry, 'link', ''),
                             'summary': self._clean_summary(entry),
                             'image': self._extract_image_url(entry),
                             'category': feed_conf.get('category', 'General')
